@@ -8,7 +8,7 @@ public static class StartupManager
 
     public static bool IsEnabled()
     {
-        return RunSchtasks($"/Query /TN "{TaskName}"") == 0;
+        return RunSchtasks($"/Query /TN \"{TaskName}\"") == 0;
     }
 
     public static bool SetEnabled(bool enable)
@@ -17,12 +17,12 @@ public static class StartupManager
         {
             string? exePath = Environment.ProcessPath;
             if (string.IsNullOrEmpty(exePath)) return false;
-            string args = $"/Create /TN "{TaskName}" /TR "\"{exePath}\" --minimized" /SC ONLOGON /RL HIGHEST /F";
+            string args = $"/Create /TN \"{TaskName}\" /TR \"\\\"{exePath}\\\" --minimized\" /SC ONLOGON /RL HIGHEST /F";
             return RunSchtasks(args) == 0;
         }
         else
         {
-            return RunSchtasks($"/Delete /TN "{TaskName}" /F") == 0;
+            return RunSchtasks($"/Delete /TN \"{TaskName}\" /F") == 0;
         }
     }
 
