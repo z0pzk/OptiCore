@@ -10,6 +10,8 @@ public class AppConfig
     public bool AutoGameModeEnabled { get; set; } = true;
     public bool AutoFreezeOnGame { get; set; } = true;
     public bool AutoPowerOnGame { get; set; } = true;
+    public bool HighPriorityOnGame { get; set; } = true;
+    public bool TimerResolutionOnGame { get; set; } = true;
 
     public List<string> Games { get; set; } = new()
     {
