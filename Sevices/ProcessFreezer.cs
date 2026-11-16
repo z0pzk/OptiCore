@@ -30,10 +30,10 @@ public static class ProcessFreezer
 
     private static readonly HashSet<string> CriticalSystemProcesses = new(StringComparer.OrdinalIgnoreCase)
     {
-        "System", "Idle", "smss", "csrss", "wininit", "services", "lsass",
-        "svchost", "winlogon", "dwm", "explorer", "fontdrvhost", "audiodg",
-        "conhost", "sihost", "taskhostw", "RuntimeBroker", "SearchHost",
-        "StartMenuExperienceHost", "ShellExperienceHost", "ctfmon", "OptiCore"
+        "System", "Idle", "Registry", "Memory Compression", "smss", "csrss", "wininit",
+        "services", "lsass", "svchost", "winlogon", "dwm", "explorer", "fontdrvhost",
+        "audiodg", "conhost", "sihost", "taskhostw", "RuntimeBroker", "SearchHost",
+        "StartMenuExperienceHost", "ShellExperienceHost", "ctfmon", "MsMpEng", "OptiCore"
     };
 
     private static readonly HashSet<int> FrozenPids = new();
@@ -122,21 +122,26 @@ public static class ProcessFreezer
         return result;
     }
 
-    public static bool FreezeByPid(int pid, string name)
+    public static (bool Ok, string Reason) FreezeByPid(int pid, string name)
     {
-        if (pid <= 4 || CriticalSystemProcesses.Contains(name)) return false;
+        if (pid <= 4 || CriticalSystemProcesses.Contains(name))
+            return (false, $"Нельзя заморозить системный процесс: {name}");
+
         IntPtr handle = OpenProcess(PROCESS_SUSPEND_RESUME, false, pid);
-        if (handle == IntPtr.Zero) return false;
+        if (handle == IntPtr.Zero)
+            return (false, $"Нет доступа к {name} (PID {pid}) — защищён Windows");
+
         try
         {
-            if (NtSuspendProcess(handle) == 0)
+            int ntStatus = NtSuspendProcess(handle);
+            if (ntStatus == 0)
             {
                 FrozenPids.Add(pid);
-                return true;
+                return (true, $"Заморожен: {name} (PID {pid})");
             }
+            return (false, $"Windows отклонила заморозку {name} (код 0x{ntStatus:X})");
         }
         finally { CloseHandle(handle); }
-        return false;
     }
 
     public static bool UnfreezeByPid(int pid)
@@ -174,7 +179,7 @@ public static class ProcessFreezer
                 if (!targetSet.Contains(name)) continue;
                 if (FrozenPids.Contains(proc.Id)) continue;
 
-                if (FreezeByPid(proc.Id, name) && !newlyFrozen.Contains(name))
+                if (FreezeByPid(proc.Id, name).Ok && !newlyFrozen.Contains(name))
                     newlyFrozen.Add(name);
             }
             catch { }
