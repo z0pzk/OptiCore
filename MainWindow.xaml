@@ -1,8 +1,8 @@
 <Window x:Class="OptiCore.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="OptiCore — Системный оптимизатор" Height="640" Width="940"
-        MinHeight="540" MinWidth="820"
+        Title="OptiCore — Системный оптимизатор" Height="660" Width="960"
+        MinHeight="560" MinWidth="840"
         Background="#0F1117" Foreground="#F3F4F6"
         WindowStartupLocation="CenterScreen"
         Closing="Window_Closing">
@@ -23,7 +23,7 @@
                 </Grid.ColumnDefinitions>
 
                 <StackPanel Grid.Column="0" VerticalAlignment="Center">
-                    <TextBlock Text="OptiCore v1.1" FontSize="18" FontWeight="Bold" Foreground="#FFFFFF"/>
+                    <TextBlock Text="OptiCore v1.2" FontSize="18" FontWeight="Bold" Foreground="#FFFFFF"/>
                     <TextBlock x:Name="TxtGameStatus" Text="Игра не обнаружена — режим ожидания" FontSize="12" Foreground="#9CA3AF" Margin="0,3,0,0"/>
                 </StackPanel>
 
@@ -192,7 +192,71 @@
                 </Grid>
             </TabItem>
 
-            <!-- TAB 3: PROCESS LISTS -->
+            <!-- TAB 3: WINDOWS TWEAKS -->
+            <TabItem Header="Твики Windows">
+                <Grid Margin="0,10,0,0">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+
+                    <Border Grid.Row="0" Background="#181B24" CornerRadius="8" Padding="12" Margin="0,0,0,10">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="Безопасные системные твики. Можно включать по одному или откатить в любой момент."
+                                       Foreground="#9CA3AF" FontSize="12" VerticalAlignment="Center" TextWrapping="Wrap"/>
+                            <StackPanel Grid.Column="1" Orientation="Horizontal">
+                                <Button Content="Применить рекомендуемые" Background="#10B981" Padding="12,7" Margin="0,0,8,0" Click="BtnApplyAllTweaks_Click"/>
+                                <Button Content="Сбросить по умолчанию" Background="#DC2626" Padding="12,7" Click="BtnRestoreTweaks_Click"/>
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+
+                    <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="12"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+
+                            <!-- Left Column: Gaming & Latency -->
+                            <Border Grid.Column="0" Background="#181B24" CornerRadius="10" Padding="16">
+                                <StackPanel>
+                                    <TextBlock Text="Игры, GPU и отклик" FontSize="14" FontWeight="Bold" Foreground="#34D399" Margin="0,0,0,10"/>
+
+                                    <CheckBox x:Name="TwkGameDvr" Content="Отключить GameDVR и фоновую запись Xbox" Foreground="#E5E7EB" Margin="0,0,0,10" Checked="TwkChanged" Unchecked="TwkChanged"/>
+                                    <CheckBox x:Name="TwkFse" Content="Отключить Fullscreen Optimizations (меньше инпут-лаг)" Foreground="#E5E7EB" Margin="0,0,0,10" Checked="TwkChanged" Unchecked="TwkChanged"/>
+                                    <CheckBox x:Name="TwkHags" Content="Аппаратное планирование GPU (HAGS — нужен рестарт)" Foreground="#E5E7EB" Margin="0,0,0,10" Checked="TwkChanged" Unchecked="TwkChanged"/>
+                                    <CheckBox x:Name="TwkScheduler" Content="Приоритет игр в планировщике CPU и GPU" Foreground="#E5E7EB" Margin="0,0,0,10" Checked="TwkChanged" Unchecked="TwkChanged"/>
+                                    <CheckBox x:Name="TwkPowerThrottle" Content="Отключить Power Throttling (душение частот)" Foreground="#E5E7EB" Margin="0,0,0,10" Checked="TwkChanged" Unchecked="TwkChanged"/>
+                                    <CheckBox x:Name="TwkNetThrottle" Content="Отключить сетевой троттлинг (NetworkThrottlingIndex)" Foreground="#E5E7EB" Margin="0,0,0,4" Checked="TwkChanged" Unchecked="TwkChanged"/>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- Right Column: Services, Disk & UI -->
+                            <Border Grid.Column="2" Background="#181B24" CornerRadius="10" Padding="16">
+                                <StackPanel>
+                                    <TextBlock Text="Службы, диск и интерфейс" FontSize="14" FontWeight="Bold" Foreground="#60A5FA" Margin="0,0,0,10"/>
+
+                                    <CheckBox x:Name="TwkSearch" Content="Отключить службу поиска и индексации (WSearch)" Foreground="#E5E7EB" Margin="0,0,0,10" Checked="TwkChanged" Unchecked="TwkChanged"/>
+                                    <CheckBox x:Name="TwkSysMain" Content="Отключить SysMain / Superfetch (разгрузка RAM и диска)" Foreground="#E5E7EB" Margin="0,0,0,10" Checked="TwkChanged" Unchecked="TwkChanged"/>
+                                    <CheckBox x:Name="TwkTelemetry" Content="Отключить службу телеметрии (DiagTrack)" Foreground="#E5E7EB" Margin="0,0,0,10" Checked="TwkChanged" Unchecked="TwkChanged"/>
+                                    <CheckBox x:Name="TwkBgApps" Content="Запретить фоновую работу UWP-приложений" Foreground="#E5E7EB" Margin="0,0,0,10" Checked="TwkChanged" Unchecked="TwkChanged"/>
+                                    <CheckBox x:Name="TwkTransparency" Content="Отключить эффекты прозрачности Windows" Foreground="#E5E7EB" Margin="0,0,0,10" Checked="TwkChanged" Unchecked="TwkChanged"/>
+                                    <CheckBox x:Name="TwkMenuDelay" Content="Убрать задержку открытия меню (MenuShowDelay = 0)" Foreground="#E5E7EB" Margin="0,0,0,10" Checked="TwkChanged" Unchecked="TwkChanged"/>
+                                    <CheckBox x:Name="TwkHibernate" Content="Отключить гибернацию (освобождает место на C:)" Foreground="#E5E7EB" Margin="0,0,0,4" Checked="TwkChanged" Unchecked="TwkChanged"/>
+                                </StackPanel>
+                            </Border>
+                        </Grid>
+                    </ScrollViewer>
+                </Grid>
+            </TabItem>
+
+            <!-- TAB 4: PROCESS LISTS -->
             <TabItem Header="Списки правил">
                 <Grid Margin="0,10,0,0">
                     <Grid.ColumnDefinitions>
