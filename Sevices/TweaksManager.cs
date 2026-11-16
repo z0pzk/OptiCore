@@ -1,23 +1,36 @@
 using System.Diagnostics;
+using System.Net.NetworkInformation;
 using Microsoft.Win32;
 
 namespace OptiCore.Services;
 
 public class TweakState
 {
+    // Safe gaming & latency
     public bool DisableGameDvr { get; set; }
     public bool DisableFullscreenOptimizations { get; set; }
     public bool EnableHags { get; set; }
     public bool GamingSchedulerPriority { get; set; }
     public bool DisablePowerThrottling { get; set; }
     public bool DisableNetworkThrottling { get; set; }
+    public bool DisableNagleAlgorithm { get; set; }
+    public bool DisableMouseAcceleration { get; set; }
+    public bool FastKeyboardResponse { get; set; }
+
+    // System, disk & UI
     public bool DisableWindowsSearch { get; set; }
     public bool DisableSysMain { get; set; }
     public bool DisableTelemetryService { get; set; }
     public bool DisableBackgroundApps { get; set; }
     public bool DisableTransparency { get; set; }
     public bool FastMenuDelay { get; set; }
+    public bool FastAppShutdown { get; set; }
+
+    // Aggressive / Caveat tweaks (not applied automatically)
     public bool DisableHibernation { get; set; }
+    public bool DisableClipboardHistory { get; set; }
+    public bool DisableErrorReporting { get; set; }
+    public bool DisableXboxServices { get; set; }
 }
 
 public static class TweaksManager
@@ -32,13 +45,22 @@ public static class TweaksManager
             GamingSchedulerPriority = ReadDword(Registry.LocalMachine, @"SOFTWARE\Microsoft\Windows NT\CurrentVersion\Multimedia\SystemProfile", "SystemResponsiveness", 20) == 0,
             DisablePowerThrottling = ReadDword(Registry.LocalMachine, @"SYSTEM\CurrentControlSet\Control\Power\PowerThrottling", "PowerThrottlingOff", 0) == 1,
             DisableNetworkThrottling = ReadDword(Registry.LocalMachine, @"SOFTWARE\Microsoft\Windows NT\CurrentVersion\Multimedia\SystemProfile", "NetworkThrottlingIndex", 10) == unchecked((int)0xFFFFFFFF),
+            DisableNagleAlgorithm = IsNagleDisabled(),
+            DisableMouseAcceleration = ReadString(Registry.CurrentUser, @"Control Panel\Mouse", "MouseSpeed", "1") == "0",
+            FastKeyboardResponse = ReadString(Registry.CurrentUser, @"Control Panel\Keyboard", "KeyboardDelay", "1") == "0",
+
             DisableWindowsSearch = ReadDword(Registry.LocalMachine, @"SYSTEM\CurrentControlSet\Services\WSearch", "Start", 2) == 4,
             DisableSysMain = ReadDword(Registry.LocalMachine, @"SYSTEM\CurrentControlSet\Services\SysMain", "Start", 2) == 4,
             DisableTelemetryService = ReadDword(Registry.LocalMachine, @"SYSTEM\CurrentControlSet\Services\DiagTrack", "Start", 2) == 4,
             DisableBackgroundApps = ReadDword(Registry.CurrentUser, @"SOFTWARE\Microsoft\Windows\CurrentVersion\BackgroundAccessApplications", "GlobalUserDisabled", 0) == 1,
             DisableTransparency = ReadDword(Registry.CurrentUser, @"SOFTWARE\Microsoft\Windows\CurrentVersion\Themes\Personalize", "EnableTransparency", 1) == 0,
             FastMenuDelay = ReadString(Registry.CurrentUser, @"Control Panel\Desktop", "MenuShowDelay", "400") == "0",
-            DisableHibernation = ReadDword(Registry.LocalMachine, @"SYSTEM\CurrentControlSet\Control\Power", "HibernateEnabled", 1) == 0
+            FastAppShutdown = ReadString(Registry.CurrentUser, @"Control Panel\Desktop", "AutoEndTasks", "0") == "1",
+
+            DisableHibernation = ReadDword(Registry.LocalMachine, @"SYSTEM\CurrentControlSet\Control\Power", "HibernateEnabled", 1) == 0,
+            DisableClipboardHistory = ReadDword(Registry.CurrentUser, @"SOFTWARE\Microsoft\Clipboard", "EnableClipboardHistory", 1) == 0,
+            DisableErrorReporting = ReadDword(Registry.LocalMachine, @"SYSTEM\CurrentControlSet\Services\WerSvc", "Start", 3) == 4,
+            DisableXboxServices = ReadDword(Registry.LocalMachine, @"SYSTEM\CurrentControlSet\Services\XblGameSave", "Start", 3) == 4
         };
     }
 
@@ -77,6 +99,63 @@ public static class TweaksManager
         WriteDword(Registry.LocalMachine, @"SOFTWARE\Microsoft\Windows NT\CurrentVersion\Multimedia\SystemProfile", "NetworkThrottlingIndex", disable ? unchecked((int)0xFFFFFFFF) : 10);
     }
 
+    public static void SetNagleAlgorithm(bool disable)
+    {
+        try
+        {
+            const string baseKey = @"SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces";
+            using var interfaces = Registry.LocalMachine.OpenSubKey(baseKey, true);
+            if (interfaces == null) return;
+            foreach (string sub in interfaces.GetSubKeyNames())
+            {
+                using var nic = interfaces.OpenSubKey(sub, true);
+                if (nic == null) continue;
+                if (disable)
+                {
+                    nic.SetValue("TcpAckFrequency", 1, RegistryValueKind.DWord);
+                    nic.SetValue("TCPNoDelay", 1, RegistryValueKind.DWord);
+                }
+                else
+                {
+                    nic.DeleteValue("TcpAckFrequency", false);
+                    nic.DeleteValue("TCPNoDelay", false);
+                }
+            }
+        }
+        catch { }
+    }
+
+    private static bool IsNagleDisabled()
+    {
+        try
+        {
+            const string baseKey = @"SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces";
+            using var interfaces = Registry.LocalMachine.OpenSubKey(baseKey);
+            if (interfaces == null) return false;
+            foreach (string sub in interfaces.GetSubKeyNames())
+            {
+                using var nic = interfaces.OpenSubKey(sub);
+                if (nic?.GetValue("TCPNoDelay") is int val && val == 1)
+                    return true;
+            }
+        }
+        catch { }
+        return false;
+    }
+
+    public static void SetMouseAcceleration(bool disable)
+    {
+        WriteString(Registry.CurrentUser, @"Control Panel\Mouse", "MouseSpeed", disable ? "0" : "1");
+        WriteString(Registry.CurrentUser, @"Control Panel\Mouse", "MouseThreshold1", disable ? "0" : "6");
+        WriteString(Registry.CurrentUser, @"Control Panel\Mouse", "MouseThreshold2", disable ? "0" : "10");
+    }
+
+    public static void SetFastKeyboard(bool fast)
+    {
+        WriteString(Registry.CurrentUser, @"Control Panel\Keyboard", "KeyboardDelay", fast ? "0" : "1");
+        WriteString(Registry.CurrentUser, @"Control Panel\Keyboard", "KeyboardSpeed", fast ? "31" : "31");
+    }
+
     public static void SetServiceDisabled(string serviceName, bool disable, string defaultStart = "auto")
     {
         if (disable)
@@ -106,26 +185,49 @@ public static class TweaksManager
         WriteString(Registry.CurrentUser, @"Control Panel\Desktop", "MenuShowDelay", fast ? "0" : "400");
     }
 
+    public static void SetFastAppShutdown(bool fast)
+    {
+        WriteString(Registry.CurrentUser, @"Control Panel\Desktop", "AutoEndTasks", fast ? "1" : "0");
+        WriteString(Registry.CurrentUser, @"Control Panel\Desktop", "WaitToKillAppTimeout", fast ? "2000" : "20000");
+        WriteString(Registry.CurrentUser, @"Control Panel\Desktop", "HungAppTimeout", fast ? "2000" : "5000");
+    }
+
     public static void SetHibernation(bool disable)
     {
         RunCommand("powercfg.exe", disable ? "/hibernate off" : "/hibernate on");
     }
 
+    public static void SetClipboardHistory(bool disable)
+    {
+        WriteDword(Registry.CurrentUser, @"SOFTWARE\Microsoft\Clipboard", "EnableClipboardHistory", disable ? 0 : 1);
+    }
+
+    public static void SetXboxServices(bool disable)
+    {
+        string[] xboxSvcs = { "XblAuthManager", "XblGameSave", "XboxNetApiSvc" };
+        foreach (string svc in xboxSvcs)
+            SetServiceDisabled(svc, disable, "demand");
+    }
+
     public static void ApplyAllRecommended()
     {
+        // Applies ONLY safe & moderate tweaks; leaves [Осторожно] tweaks untouched
         SetGameDvr(true);
         SetFullscreenOptimizations(true);
         SetHags(true);
         SetGamingScheduler(true);
         SetPowerThrottling(true);
         SetNetworkThrottling(true);
+        SetNagleAlgorithm(true);
+        SetMouseAcceleration(true);
+        SetFastKeyboard(true);
         SetServiceDisabled("WSearch", true);
         SetServiceDisabled("SysMain", true);
         SetServiceDisabled("DiagTrack", true);
         SetBackgroundApps(true);
         SetTransparency(true);
         SetFastMenuDelay(true);
-        SetHibernation(true);
+        SetFastAppShutdown(true);
     }
 
     public static void RestoreDefaults()
@@ -136,13 +238,20 @@ public static class TweaksManager
         SetGamingScheduler(false);
         SetPowerThrottling(false);
         SetNetworkThrottling(false);
+        SetNagleAlgorithm(false);
+        SetMouseAcceleration(false);
+        SetFastKeyboard(false);
         SetServiceDisabled("WSearch", false, "delayed-auto");
         SetServiceDisabled("SysMain", false, "auto");
         SetServiceDisabled("DiagTrack", false, "auto");
         SetBackgroundApps(false);
         SetTransparency(false);
         SetFastMenuDelay(false);
+        SetFastAppShutdown(false);
         SetHibernation(false);
+        SetClipboardHistory(false);
+        SetServiceDisabled("WerSvc", false, "demand");
+        SetXboxServices(false);
     }
 
     private static int ReadDword(RegistryKey root, string subKey, string name, int fallback)
