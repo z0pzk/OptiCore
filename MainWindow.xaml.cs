@@ -96,7 +96,10 @@ public partial class MainWindow : Window
             }
         }
 
-        if (MainTabs.SelectedIndex == 1 && IsVisible)
+        // Only auto-refresh Task Manager when no row is selected (so selection & clicks don't jump!)
+        if (MainTabs.SelectedIndex == 1 && IsVisible &&
+            ChkAutoRefreshProcs.IsChecked == true &&
+            GridProcesses.SelectedItem == null)
         {
             RefreshTaskManager();
         }
@@ -179,13 +182,22 @@ public partial class MainWindow : Window
         TwkScheduler.IsChecked = st.GamingSchedulerPriority;
         TwkPowerThrottle.IsChecked = st.DisablePowerThrottling;
         TwkNetThrottle.IsChecked = st.DisableNetworkThrottling;
+        TwkNagle.IsChecked = st.DisableNagleAlgorithm;
+        TwkMouseAccel.IsChecked = st.DisableMouseAcceleration;
+        TwkKeyboard.IsChecked = st.FastKeyboardResponse;
+
         TwkSearch.IsChecked = st.DisableWindowsSearch;
         TwkSysMain.IsChecked = st.DisableSysMain;
         TwkTelemetry.IsChecked = st.DisableTelemetryService;
         TwkBgApps.IsChecked = st.DisableBackgroundApps;
         TwkTransparency.IsChecked = st.DisableTransparency;
         TwkMenuDelay.IsChecked = st.FastMenuDelay;
+        TwkShutdown.IsChecked = st.FastAppShutdown;
+
         TwkHibernate.IsChecked = st.DisableHibernation;
+        TwkClipboard.IsChecked = st.DisableClipboardHistory;
+        TwkWer.IsChecked = st.DisableErrorReporting;
+        TwkXbox.IsChecked = st.DisableXboxServices;
         _isLoadingTweaks = false;
     }
 
@@ -198,13 +210,22 @@ public partial class MainWindow : Window
         else if (sender == TwkScheduler) TweaksManager.SetGamingScheduler(TwkScheduler.IsChecked == true);
         else if (sender == TwkPowerThrottle) TweaksManager.SetPowerThrottling(TwkPowerThrottle.IsChecked == true);
         else if (sender == TwkNetThrottle) TweaksManager.SetNetworkThrottling(TwkNetThrottle.IsChecked == true);
+        else if (sender == TwkNagle) TweaksManager.SetNagleAlgorithm(TwkNagle.IsChecked == true);
+        else if (sender == TwkMouseAccel) TweaksManager.SetMouseAcceleration(TwkMouseAccel.IsChecked == true);
+        else if (sender == TwkKeyboard) TweaksManager.SetFastKeyboard(TwkKeyboard.IsChecked == true);
+
         else if (sender == TwkSearch) TweaksManager.SetServiceDisabled("WSearch", TwkSearch.IsChecked == true, "delayed-auto");
         else if (sender == TwkSysMain) TweaksManager.SetServiceDisabled("SysMain", TwkSysMain.IsChecked == true, "auto");
         else if (sender == TwkTelemetry) TweaksManager.SetServiceDisabled("DiagTrack", TwkTelemetry.IsChecked == true, "auto");
         else if (sender == TwkBgApps) TweaksManager.SetBackgroundApps(TwkBgApps.IsChecked == true);
         else if (sender == TwkTransparency) TweaksManager.SetTransparency(TwkTransparency.IsChecked == true);
         else if (sender == TwkMenuDelay) TweaksManager.SetFastMenuDelay(TwkMenuDelay.IsChecked == true);
+        else if (sender == TwkShutdown) TweaksManager.SetFastAppShutdown(TwkShutdown.IsChecked == true);
+
         else if (sender == TwkHibernate) TweaksManager.SetHibernation(TwkHibernate.IsChecked == true);
+        else if (sender == TwkClipboard) TweaksManager.SetClipboardHistory(TwkClipboard.IsChecked == true);
+        else if (sender == TwkWer) TweaksManager.SetServiceDisabled("WerSvc", TwkWer.IsChecked == true, "demand");
+        else if (sender == TwkXbox) TweaksManager.SetXboxServices(TwkXbox.IsChecked == true);
 
         Log("Твик обновлён.");
     }
@@ -213,19 +234,19 @@ public partial class MainWindow : Window
     {
         TweaksManager.ApplyAllRecommended();
         LoadTweaksUi();
-        Log("Применены все рекомендуемые твики Windows.");
+        Log("Применены все рекомендуемые (безопасные) твики Windows.");
     }
 
     private void BtnRestoreTweaks_Click(object sender, RoutedEventArgs e)
     {
         TweaksManager.RestoreDefaults();
         LoadTweaksUi();
-        Log("Твики сброшены на значения по умолчанию.");
+        Log("Все твики сброшены на значения по умолчанию.");
     }
 
-    private void RefreshTaskManager()
+    private void RefreshTaskManager(int? keepPid = null)
     {
-        int? selectedPid = (GridProcesses.SelectedItem as ProcessInfoItem)?.Pid;
+        int? selectedPid = keepPid ?? (GridProcesses.SelectedItem as ProcessInfoItem)?.Pid;
         var list = ProcessFreezer.GetRunningProcesses();
 
         IEnumerable<ProcessInfoItem> sorted = CmbSort.SelectedIndex switch
@@ -263,9 +284,15 @@ public partial class MainWindow : Window
             LstLog.Items.RemoveAt(LstLog.Items.Count - 1);
     }
 
+    private void SetProcStatus(string msg)
+    {
+        TxtProcActionStatus.Text = msg;
+        Log(msg);
+    }
+
     private void MainTabs_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
-        if (_isLoaded && MainTabs.SelectedIndex == 1)
+        if (_isLoaded && MainTabs.SelectedIndex == 1 && e.Source == MainTabs)
             RefreshTaskManager();
     }
 
@@ -274,85 +301,123 @@ public partial class MainWindow : Window
         if (_isLoaded) RefreshTaskManager();
     }
 
-    private void BtnRefreshProcs_Click(object sender, RoutedEventArgs e) => RefreshTaskManager();
+    private void GridProcesses_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (GridProcesses.SelectedItem is ProcessInfoItem item)
+            TxtProcActionStatus.Text = $"Выбран: {item.Name} (PID {item.Pid}) — автообновление на паузе";
+    }
+
+    private void BtnRefreshProcs_Click(object sender, RoutedEventArgs e)
+    {
+        RefreshTaskManager();
+        TxtProcActionStatus.Text = "Список процессов обновлён";
+    }
 
     private void BtnProcFreeze_Click(object sender, RoutedEventArgs e)
     {
-        if (GridProcesses.SelectedItem is ProcessInfoItem item)
+        if (GridProcesses.SelectedItem is not ProcessInfoItem item)
         {
-            if (ProcessFreezer.FreezeByPid(item.Pid, item.Name))
-                Log($"Заморожен: {item.Name} (PID {item.Pid})");
-            else
-                Log($"Нельзя заморозить системный процесс: {item.Name}");
-            RefreshTaskManager();
+            TxtProcActionStatus.Text = "Сначала выбери процесс в таблице!";
+            return;
         }
+        var (_, reason) = ProcessFreezer.FreezeByPid(item.Pid, item.Name);
+        SetProcStatus(reason);
+        RefreshTaskManager(item.Pid);
     }
 
     private void BtnProcUnfreeze_Click(object sender, RoutedEventArgs e)
     {
-        if (GridProcesses.SelectedItem is ProcessInfoItem item)
+        if (GridProcesses.SelectedItem is not ProcessInfoItem item)
         {
-            if (ProcessFreezer.UnfreezeByPid(item.Pid))
-                Log($"Разморожен: {item.Name} (PID {item.Pid})");
-            RefreshTaskManager();
+            TxtProcActionStatus.Text = "Сначала выбери процесс в таблице!";
+            return;
         }
+        bool ok = ProcessFreezer.UnfreezeByPid(item.Pid);
+        SetProcStatus(ok ? $"Разморожен: {item.Name} (PID {item.Pid})" : $"Не удалось разморозить {item.Name}");
+        RefreshTaskManager(item.Pid);
     }
 
     private void BtnProcAddFreeze_Click(object sender, RoutedEventArgs e)
     {
-        if (GridProcesses.SelectedItem is ProcessInfoItem item &&
-            !_config.FreezeTargets.Contains(item.Name, StringComparer.OrdinalIgnoreCase))
+        if (GridProcesses.SelectedItem is not ProcessInfoItem item)
+        {
+            TxtProcActionStatus.Text = "Сначала выбери процесс в таблице!";
+            return;
+        }
+        if (!_config.FreezeTargets.Contains(item.Name, StringComparer.OrdinalIgnoreCase))
         {
             _config.FreezeTargets.Add(item.Name);
             RefreshLists();
             ConfigService.Save(_config);
-            Log($"Добавлен в заморозку фона: {item.Name}");
+            SetProcStatus($"Добавлен в заморозку фона: {item.Name}");
+        }
+        else
+        {
+            TxtProcActionStatus.Text = $"{item.Name} уже в списке заморозки";
         }
     }
 
     private void BtnProcAddWhite_Click(object sender, RoutedEventArgs e)
     {
-        if (GridProcesses.SelectedItem is ProcessInfoItem item &&
-            !_config.Whitelist.Contains(item.Name, StringComparer.OrdinalIgnoreCase))
+        if (GridProcesses.SelectedItem is not ProcessInfoItem item)
+        {
+            TxtProcActionStatus.Text = "Сначала выбери процесс в таблице!";
+            return;
+        }
+        if (!_config.Whitelist.Contains(item.Name, StringComparer.OrdinalIgnoreCase))
         {
             _config.Whitelist.Add(item.Name);
             RefreshLists();
             ConfigService.Save(_config);
-            Log($"Добавлен в белый список: {item.Name}");
+            SetProcStatus($"Добавлен в белый список: {item.Name}");
+        }
+        else
+        {
+            TxtProcActionStatus.Text = $"{item.Name} уже в белом списке";
         }
     }
 
     private void BtnProcAddGame_Click(object sender, RoutedEventArgs e)
     {
-        if (GridProcesses.SelectedItem is ProcessInfoItem item &&
-            !_config.Games.Contains(item.Name, StringComparer.OrdinalIgnoreCase))
+        if (GridProcesses.SelectedItem is not ProcessInfoItem item)
+        {
+            TxtProcActionStatus.Text = "Сначала выбери процесс в таблице!";
+            return;
+        }
+        if (!_config.Games.Contains(item.Name, StringComparer.OrdinalIgnoreCase))
         {
             _config.Games.Add(item.Name);
             RefreshLists();
             ConfigService.Save(_config);
-            Log($"Добавлен в список игр: {item.Name}");
+            SetProcStatus($"Добавлен в список игр: {item.Name}");
+        }
+        else
+        {
+            TxtProcActionStatus.Text = $"{item.Name} уже в списке игр";
         }
     }
 
     private void BtnProcKill_Click(object sender, RoutedEventArgs e)
     {
-        if (GridProcesses.SelectedItem is ProcessInfoItem item)
+        if (GridProcesses.SelectedItem is not ProcessInfoItem item)
         {
-            if (ProcessFreezer.IsProtected(item.Name))
-            {
-                Log($"Защита: нельзя завершать системный процесс {item.Name}");
-                return;
-            }
-            try
-            {
-                Process.GetProcessById(item.Pid).Kill();
-                Log($"Завершён процесс: {item.Name} (PID {item.Pid})");
-                RefreshTaskManager();
-            }
-            catch (Exception ex)
-            {
-                Log($"Ошибка завершения {item.Name}: {ex.Message}");
-            }
+            TxtProcActionStatus.Text = "Сначала выбери процесс в таблице!";
+            return;
+        }
+        if (ProcessFreezer.IsProtected(item.Name))
+        {
+            SetProcStatus($"Защита: нельзя завершать системный процесс {item.Name}");
+            return;
+        }
+        try
+        {
+            Process.GetProcessById(item.Pid).Kill();
+            SetProcStatus($"Завершён процесс: {item.Name} (PID {item.Pid})");
+            RefreshTaskManager();
+        }
+        catch (Exception ex)
+        {
+            SetProcStatus($"Ошибка завершения {item.Name}: {ex.Message}");
         }
     }
 
