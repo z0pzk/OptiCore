@@ -19,6 +19,7 @@ public partial class MainWindow : Window
     private string? _activeGameName = null;
     private bool _isGameModeActive = false;
     private bool _isLoaded = false;
+    private bool _isLoadingTweaks = false;
     private bool _reallyExit = false;
 
     public MainWindow()
@@ -35,6 +36,7 @@ public partial class MainWindow : Window
         ChkAutostart.IsChecked = StartupManager.IsEnabled();
 
         RefreshLists();
+        LoadTweaksUi();
 
         _trayIcon = new NotifyIcon
         {
@@ -165,6 +167,60 @@ public partial class MainWindow : Window
             Log($"Разморожено процессов: {resumed}");
 
         Log("Возврат в средний режим.");
+    }
+
+    private void LoadTweaksUi()
+    {
+        _isLoadingTweaks = true;
+        var st = TweaksManager.GetCurrentState();
+        TwkGameDvr.IsChecked = st.DisableGameDvr;
+        TwkFse.IsChecked = st.DisableFullscreenOptimizations;
+        TwkHags.IsChecked = st.EnableHags;
+        TwkScheduler.IsChecked = st.GamingSchedulerPriority;
+        TwkPowerThrottle.IsChecked = st.DisablePowerThrottling;
+        TwkNetThrottle.IsChecked = st.DisableNetworkThrottling;
+        TwkSearch.IsChecked = st.DisableWindowsSearch;
+        TwkSysMain.IsChecked = st.DisableSysMain;
+        TwkTelemetry.IsChecked = st.DisableTelemetryService;
+        TwkBgApps.IsChecked = st.DisableBackgroundApps;
+        TwkTransparency.IsChecked = st.DisableTransparency;
+        TwkMenuDelay.IsChecked = st.FastMenuDelay;
+        TwkHibernate.IsChecked = st.DisableHibernation;
+        _isLoadingTweaks = false;
+    }
+
+    private void TwkChanged(object sender, RoutedEventArgs e)
+    {
+        if (_isLoadingTweaks || !_isLoaded) return;
+        if (sender == TwkGameDvr) TweaksManager.SetGameDvr(TwkGameDvr.IsChecked == true);
+        else if (sender == TwkFse) TweaksManager.SetFullscreenOptimizations(TwkFse.IsChecked == true);
+        else if (sender == TwkHags) TweaksManager.SetHags(TwkHags.IsChecked == true);
+        else if (sender == TwkScheduler) TweaksManager.SetGamingScheduler(TwkScheduler.IsChecked == true);
+        else if (sender == TwkPowerThrottle) TweaksManager.SetPowerThrottling(TwkPowerThrottle.IsChecked == true);
+        else if (sender == TwkNetThrottle) TweaksManager.SetNetworkThrottling(TwkNetThrottle.IsChecked == true);
+        else if (sender == TwkSearch) TweaksManager.SetServiceDisabled("WSearch", TwkSearch.IsChecked == true, "delayed-auto");
+        else if (sender == TwkSysMain) TweaksManager.SetServiceDisabled("SysMain", TwkSysMain.IsChecked == true, "auto");
+        else if (sender == TwkTelemetry) TweaksManager.SetServiceDisabled("DiagTrack", TwkTelemetry.IsChecked == true, "auto");
+        else if (sender == TwkBgApps) TweaksManager.SetBackgroundApps(TwkBgApps.IsChecked == true);
+        else if (sender == TwkTransparency) TweaksManager.SetTransparency(TwkTransparency.IsChecked == true);
+        else if (sender == TwkMenuDelay) TweaksManager.SetFastMenuDelay(TwkMenuDelay.IsChecked == true);
+        else if (sender == TwkHibernate) TweaksManager.SetHibernation(TwkHibernate.IsChecked == true);
+
+        Log("Твик обновлён.");
+    }
+
+    private void BtnApplyAllTweaks_Click(object sender, RoutedEventArgs e)
+    {
+        TweaksManager.ApplyAllRecommended();
+        LoadTweaksUi();
+        Log("Применены все рекомендуемые твики Windows.");
+    }
+
+    private void BtnRestoreTweaks_Click(object sender, RoutedEventArgs e)
+    {
+        TweaksManager.RestoreDefaults();
+        LoadTweaksUi();
+        Log("Твики сброшены на значения по умолчанию.");
     }
 
     private void RefreshTaskManager()
